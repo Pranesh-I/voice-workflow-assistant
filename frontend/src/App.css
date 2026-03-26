@@ -1,184 +1,249 @@
-.counter {
-  font-size: 16px;
-  padding: 5px 10px;
-  border-radius: 5px;
-  color: var(--accent);
-  background: var(--accent-bg);
-  border: 2px solid transparent;
-  transition: border-color 0.3s;
-  margin-bottom: 24px;
-
-  &:hover {
-    border-color: var(--accent-border);
-  }
-  &:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
+/* Background & Reset (No solid colors allowed, strictly transparent overlay) */
+body, html {
+  margin: 0;
+  padding: 0;
+  background: transparent !important;
+  font-family: 'Inter', system-ui, sans-serif;
+  overflow: hidden;
 }
 
-.hero {
-  position: relative;
-
-  .base,
-  .framework,
-  .vite {
-    inset-inline: 0;
-    margin: 0 auto;
-  }
-
-  .base {
-    width: 170px;
-    position: relative;
-    z-index: 0;
-  }
-
-  .framework,
-  .vite {
-    position: absolute;
-  }
-
-  .framework {
-    z-index: 1;
-    top: 34px;
-    height: 28px;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(44deg) rotateY(39deg)
-      scale(1.4);
-  }
-
-  .vite {
-    z-index: 0;
-    top: 107px;
-    height: 26px;
-    width: auto;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(40deg) rotateY(39deg)
-      scale(0.8);
-  }
+#root {
+  background: transparent !important;
+  width: 100vw;
+  height: 100vh;
 }
 
-#center {
+.overlay-container {
+  position: fixed;
+  inset: 0;
+  background: transparent;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   display: flex;
   flex-direction: column;
-  gap: 25px;
-  place-content: center;
-  place-items: center;
-  flex-grow: 1;
-
-  @media (max-width: 1024px) {
-    padding: 32px 20px 24px;
-    gap: 18px;
-  }
+  justify-content: center;
+  align-items: center;
+  animation: overlayFadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  overflow: hidden;
 }
 
-#next-steps {
+/* 1. Subtle, Animated Screen Boundary Matrix (Atmospheric Layer) */
+.edge-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border: 6px solid transparent; /* Thick gradient border pushing in */
+  background: linear-gradient(135deg, rgba(61, 220, 255, 0.5), rgba(79, 209, 197, 0.4), rgba(139, 92, 246, 0.5), rgba(196, 181, 253, 0.4)) border-box;
+  -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: destination-out;
+  mask-composite: exclude;
+  opacity: 0.6;
+  filter: blur(12px); /* Blurred boundary logic creating diffusion */
+  transition: all 0.6s ease-in-out;
+  z-index: 1;
+}
+
+.radial-blur {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center 60%, rgba(139, 92, 246, 0.08) 0%, rgba(61, 220, 255, 0.04) 20%, transparent 60%);
+  z-index: 0;
+  pointer-events: none;
+  transition: all 0.8s ease;
+}
+
+/* Enhance edge glow strictly based on processing states dynamically */
+.overlay-container.listening .edge-glow {
+  opacity: 1;
+  filter: blur(16px);
+  border-width: 8px;
+  animation: boundaryGlowPulse 3s infinite alternate ease-in-out;
+}
+.overlay-container.listening .radial-blur {
+  background: radial-gradient(circle at center 60%, rgba(139, 92, 246, 0.15) 0%, rgba(61, 220, 255, 0.08) 35%, transparent 65%);
+}
+
+.overlay-container.processing .edge-glow {
+  opacity: 0.8;
+  filter: blur(10px);
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.7), rgba(196, 181, 253, 0.6)) border-box;
+}
+
+.overlay-container.executed .edge-glow {
+  opacity: 1;
+  filter: blur(20px);
+  border-width: 12px;
+  background: linear-gradient(135deg, rgba(61, 220, 255, 0.8), rgba(79, 209, 197, 0.6)) border-box;
+}
+
+@keyframes boundaryGlowPulse {
+  0% { filter: blur(12px); border-width: 6px; }
+  100% { filter: blur(22px); border-width: 10px; }
+}
+
+@keyframes overlayFadeIn {
+  from { opacity: 0; backdrop-filter: blur(0px); }
+  to { opacity: 1; backdrop-filter: blur(10px); }
+}
+
+/* 2. Primary Siri-style Interaction Core Layout */
+.interaction-zone {
+  position: absolute;
+  top: 58%; /* Center horizontally, slightly below center vertical space */
+  transform: translateY(-50%);
   display: flex;
-  border-top: 1px solid var(--border);
-  text-align: left;
-
-  & > div {
-    flex: 1 1 0;
-    padding: 32px;
-    @media (max-width: 1024px) {
-      padding: 24px 20px;
-    }
-  }
-
-  .icon {
-    margin-bottom: 16px;
-    width: 22px;
-    height: 22px;
-  }
-
-  @media (max-width: 1024px) {
-    flex-direction: column;
-    text-align: center;
-  }
-}
-
-#docs {
-  border-right: 1px solid var(--border);
-
-  @media (max-width: 1024px) {
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-  }
-}
-
-#next-steps ul {
-  list-style: none;
-  padding: 0;
-  display: flex;
-  gap: 8px;
-  margin: 32px 0 0;
-
-  .logo {
-    height: 18px;
-  }
-
-  a {
-    color: var(--text-h);
-    font-size: 16px;
-    border-radius: 6px;
-    background: var(--social-bg);
-    display: flex;
-    padding: 6px 12px;
-    align-items: center;
-    gap: 8px;
-    text-decoration: none;
-    transition: box-shadow 0.3s;
-
-    &:hover {
-      box-shadow: var(--shadow);
-    }
-    .button-icon {
-      height: 18px;
-      width: 18px;
-    }
-  }
-
-  @media (max-width: 1024px) {
-    margin-top: 20px;
-    flex-wrap: wrap;
-    justify-content: center;
-
-    li {
-      flex: 1 1 calc(50% - 8px);
-    }
-
-    a {
-      width: 100%;
-      justify-content: center;
-      box-sizing: border-box;
-    }
-  }
-}
-
-#spacer {
-  height: 88px;
-  border-top: 1px solid var(--border);
-  @media (max-width: 1024px) {
-    height: 48px;
-  }
-}
-
-.ticks {
-  position: relative;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 36px;
   width: 100%;
+  z-index: 10;
+}
 
-  &::before,
-  &::after {
-    content: '';
-    position: absolute;
-    top: -4.5px;
-    border: 5px solid transparent;
-  }
+/* 3. Neural-Grade Live Transcription Typography */
+.live-transcript {
+  font-family: 'Inter', system-ui, sans-serif;
+  color: #ffffff;
+  font-size: 46px; /* Massive readable caption */
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  text-align: center;
+  max-width: 900px;
+  line-height: 1.25;
+  min-height: 56px;
+  pointer-events: none;
+  text-shadow: 0 4px 24px rgba(139, 92, 246, 0.6), 0 0 14px rgba(61, 220, 255, 0.4);
+  animation: popText 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
 
-  &::before {
-    left: 0;
-    border-left-color: var(--border);
-  }
-  &::after {
-    right: 0;
-    border-right-color: var(--border);
-  }
+@keyframes popText {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0px) scale(1); }
+}
+
+/* 4. Center Apple Assistant/Siri Microphone Orb Topology */
+.mic-orb {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 0 40px rgba(61, 220, 255, 0.15), inset 0 0 24px rgba(255, 255, 255, 0.08);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mic-icon {
+  color: rgba(255, 255, 255, 0.9);
+  z-index: 20;
+  transition: all 0.3s ease;
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.4));
+}
+
+.orb-core {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3DDCFF, #4FD1C5, #8B5CF6);
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+  filter: blur(14px);
+}
+
+/* Voice Orb Fluid State Machine Mechanics */
+
+/* A. Idle / Start / "Listening for Wake" */
+.mic-orb.idle {
+  animation: orbLevitate 5s infinite alternate ease-in-out;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* B. Actively Capturing Human Speech (Pulse) */
+.mic-orb.listening {
+  border-color: rgba(61, 220, 255, 0.7);
+  box-shadow: 0 0 60px rgba(61, 220, 255, 0.3), inset 0 0 20px rgba(61, 220, 255, 0.2);
+  transform: scale(1.05);
+}
+
+.mic-orb.listening .orb-core {
+  opacity: 0.75;
+  animation: coreRotate 5s infinite linear;
+}
+
+.mic-orb.listening .waveform-ripple {
+  position: absolute;
+  inset: -22px;
+  border: 1.5px solid rgba(61, 220, 255, 0.4);
+  border-radius: 50%;
+  animation: sonarEmanation 2.2s infinite cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mic-orb.listening .mic-icon {
+  color: #fff;
+  transform: scale(1.1);
+  filter: drop-shadow(0 0 12px #3DDCFF);
+}
+
+/* C. Sending Request To Neural Network (Rotating Spin) */
+.mic-orb.processing {
+  border-color: rgba(139, 92, 246, 0.9);
+  transform: scale(0.92);
+  box-shadow: 0 0 50px rgba(139, 92, 246, 0.4);
+}
+
+.mic-orb.processing .orb-core {
+  opacity: 1;
+  background: linear-gradient(135deg, #8B5CF6, #C4B5FD);
+  animation: coreRotate 1.2s infinite linear;
+  filter: blur(18px);
+}
+
+.mic-orb.processing .mic-icon {
+  color: #E2D4FF;
+  animation: softAlphaPulse 1s infinite alternate;
+}
+
+/* D. Network Response Success (Clean Disengage) */
+.mic-orb.executed {
+  transform: scale(1.15);
+  border-color: #4FD1C5;
+  box-shadow: 0 0 80px rgba(79, 209, 197, 0.7);
+}
+
+.mic-orb.executed .orb-core {
+  opacity: 1;
+  background: #4FD1C5;
+  filter: blur(28px);
+}
+
+.mic-orb.executed .mic-icon {
+  color: #fff;
+  filter: drop-shadow(0 0 16px #4FD1C5);
+}
+
+/* Core Physics Animations */
+@keyframes sonarEmanation {
+  0% { transform: scale(0.8); opacity: 1; border-width: 2px; }
+  100% { transform: scale(2.2); opacity: 0; border-color: rgba(139, 92, 246, 0.1); border-width: 0.5px; }
+}
+
+@keyframes orbLevitate {
+  0% { transform: translateY(0px) scale(1); box-shadow: 0 0 30px rgba(61, 220, 255, 0.08); }
+  100% { transform: translateY(-8px) scale(0.98); box-shadow: 0 0 45px rgba(139, 92, 246, 0.12); }
+}
+
+@keyframes coreRotate {
+  0% { transform: rotate(0deg) scale(1.02); filter: blur(14px); }
+  50% { transform: rotate(180deg) scale(1.08); filter: blur(20px); }
+  100% { transform: rotate(360deg) scale(1.02); filter: blur(14px); }
+}
+
+@keyframes softAlphaPulse {
+  0% { opacity: 0.6; }
+  100% { opacity: 1; }
 }

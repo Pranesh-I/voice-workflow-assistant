@@ -2,13 +2,97 @@ const SpeechRecognition =
   window.SpeechRecognition || window.webkitSpeechRecognition;
 
 let recognition = null;
+let isListening = false;
 
 if (SpeechRecognition) {
   recognition = new SpeechRecognition();
-
-  recognition.continuous = false; // listens once per command
+  // We use non-continuous so it completes when they stop talking natively,
+  // but we absolutely need interimResults for real-time live transcript glow!
+  recognition.continuous = false;
   recognition.lang = "en-US";
-  recognition.interimResults = false;
+  recognition.interimResults = true;
 }
 
+const ERROR_MESSAGES = {
+  "no-speech": "No speech detected...",
+  "audio-capture": "No microphone found.",
+  "not-allowed": "Microphone blocked.",
+  "network": "Network error...",
+  "aborted": "Cancelled by system...",
+  "service-not-allowed": "Speech recognition blocked.",
+};
+
+export function startRecognition(onResult, onError) {
+  if (!recognition) {
+    onError("Speech recognition not supported in this environment.", "unsupported", true);
+    return;
+  }
+
+  if (isListening) {
+    try { recognition.abort(); } catch (_) { /* ignore */ }
+    isListening = false;
+    setTimeout(() => startRecognition(onResult, onError), 200);
+    return;
+  }
+
+  recognition.onresult = (event) => {
+    let transcript = "";
+    let isFinal = false;
+
+    // Loop through all results correctly securely
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      transcript += event.results[i][0].transcript;
+      if (event.results[i].isFinal) {
+        isFinal = true;
+      }
+    }
+    
+    // Pass both the live accumulating string and its state
+    onResult(transcript, isFinal);
+
+    // If it's final, tracking stops internally
+    if (isFinal) {
+      isListening = false;
+    }
+  };
+
+  recognition.onerror = (event) => {
+    isListening = false;
+    const code = event.error || "unknown";
+    if (code === "aborted" || code === "no-speech") { 
+        // silently abort out to hide window automatically if no speech
+        onResult("", true, true);
+        return; 
+    }
+    const message = ERROR_MESSAGES[code] || `Mic error: ${code}`;
+    console.error("SpeechRecognition error:", code, event);
+    onError(message, code, true);
+  };
+
+  recognition.onend = () => {
+    // Fired when the mic closes organically or explicitly.
+    if (isListening) {
+      isListening = false;
+      onResult("", true, true); 
+    }
+  };
+
+  try {
+    recognition.start();
+    isListening = true;
+  } catch (err) {
+    isListening = false;
+    console.error("Failed to start recognition:", err);
+    onError("Mic start failed.", "start-failed", true);
+  }
+}
+
+export function stopRecognition() {
+  if (recognition && isListening) {
+    try { recognition.abort(); } catch (_) { /* ignore */ }
+    isListening = false;
+  }
+}
+
+export { isListening };
 export default recognition;

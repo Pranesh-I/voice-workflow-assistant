@@ -1,12 +1,23 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+use tauri::{Manager};
+use tauri_plugin_global_shortcut::{
+    Builder as ShortcutBuilder,
+    ShortcutState,
+    GlobalShortcutExt,
+};
 
-use tauri::Manager;
-use tauri_plugin_global_shortcut::{Builder as ShortcutBuilder, Shortcut, ShortcutState};
+#[tauri::command]
+fn open_app(app_name: String) -> Result<String, String> {
+    println!("open_app command triggered for: {}", app_name);
+    match std::process::Command::new("cmd").args(["/C", "start", "", &app_name]).spawn() {
+        Ok(_) => Ok(format!("Opened {}", app_name)),
+        Err(e) => Err(format!("Failed to open {}: {}", app_name, e)),
+    }
+}
 
 fn main() {
     tauri::Builder::default()
 
-        // Enable opener plugin (required for opening URLs like YouTube)
+        // Enable opener plugin
         .plugin(tauri_plugin_opener::init())
 
         // Enable shell plugin
@@ -18,16 +29,15 @@ fn main() {
         // Enable global shortcut plugin
         .plugin(
             ShortcutBuilder::new()
-                .with_shortcuts(["Ctrl+Shift+V"])
-                .unwrap()
                 .with_handler(|app, shortcut, event| {
+                    let expected = "Ctrl+Shift+Space".parse().unwrap();
 
-                    let expected: Shortcut = "Ctrl+Shift+V".parse().unwrap();
+                    if shortcut == &expected
+                        && event.state == ShortcutState::Pressed
+                    {
+                        println!("Shortcut triggered!");
 
-                    if shortcut == &expected && event.state == ShortcutState::Pressed {
-
-                        if let Some(window) = app.get_webview_window("main") {
-
+                        if let Some(window) = app.get_webview_window("assistant") {
                             let visible = window.is_visible().unwrap_or(false);
 
                             if visible {
@@ -42,17 +52,22 @@ fn main() {
                 .build(),
         )
 
-        // Hide window at startup
+        // Register shortcut + hide window at startup
         .setup(|app| {
 
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.hide();
-            }
+            // Safely attempt to register shortcut without panicking if OS lock persists
+            let _ = app.global_shortcut().register("Ctrl+Shift+Space");
+
+            // The website main window remains untouched and visible.
+            // The assistant overlay auto-hides by tauri config.
 
             Ok(())
         })
 
-        // Run application
+        // Register command handlers
+        .invoke_handler(tauri::generate_handler![open_app])
+
+        // Run app
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

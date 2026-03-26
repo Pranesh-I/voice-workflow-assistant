@@ -5,37 +5,31 @@ export async function detectIntentWithGemini(text) {
   // ---------- LOCAL RULE ENGINE (NO GEMINI CALL) ----------
   if (command.includes("youtube")) {
     return {
-      task: "open_youtube",
-      date: "",
-      time: "",
-      priority: "normal"
+      action: "open_app",
+      app: "youtube"
     };
   }
 
   if (command.includes("calculator")) {
     return {
-      task: "open_calculator",
-      date: "",
-      time: "",
-      priority: "normal"
+      action: "open_app",
+      app: "calc"
     };
   }
 
   if (command.includes("whatsapp")) {
     return {
-      task: "open_whatsapp",
-      date: "",
-      time: "",
-      priority: "normal"
+      action: "open_app",
+      app: "whatsapp"
     };
   }
 
   if (command.includes("reminder") || command.includes("remind")) {
     return {
-      task: "set_reminder",
+      action: "create_task",
+      task: "reminder",
       date: "",
-      time: "",
-      priority: "normal"
+      time: ""
     };
   }
 
@@ -43,8 +37,10 @@ export async function detectIntentWithGemini(text) {
 
   const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
+  const todayStr = new Date().toISOString().split('T')[0];
+
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`,
     {
       method: "POST",
       headers: {
@@ -55,26 +51,127 @@ export async function detectIntentWithGemini(text) {
           {
             parts: [
               {
-                text: `
-Extract task details and return STRICT JSON.
+                text: `You are an AI command parser for a voice assistant.
 
-Rules:
-- Always return all fields
-- If date missing return ""
-- If time missing return ""
-- If priority missing return "normal"
+Convert the given sentence into STRICT JSON.
 
-Return format:
+RULES:
+- Return ONLY JSON (no explanation)
+- Always include all fields
+- If value not present, return ""
+- Detect user intent correctly
+- Support MULTIPLE actions
+- ALWAYS return date in YYYY-MM-DD format. If date is missing or "today", use "${todayStr}".
+- ALWAYS return time in 24-hour HH:mm format (e.g., "18:00").
+
+-------------------------------------
+
+SUPPORTED ACTIONS:
+
+1. send_email
+2. schedule_meeting
+3. email_and_schedule
+4. open_app
+5. create_task
+
+-------------------------------------
+
+RETURN FORMAT:
 
 {
+  "action": "",
+  "to": "",
+  "subject": "",
+  "message": "",
+  "meeting": {
+    "title": "",
+    "time": ""
+  },
   "task": "",
   "date": "",
   "time": "",
-  "priority": ""
+  "app": ""
 }
 
-Sentence: "${text}"
-`
+-------------------------------------
+
+INTENT RULES:
+
+- If user says "send mail/email" -> send_email
+- If user says "schedule meeting" -> schedule_meeting
+- If BOTH email + meeting -> email_and_schedule
+- If user says "open chrome / calculator" -> open_app
+- If reminder/task -> create_task
+
+-------------------------------------
+
+EXAMPLES:
+
+Input: Send email to john saying meeting at 5
+Output:
+{
+  "action": "send_email",
+  "to": "john@example.com",
+  "subject": "Meeting",
+  "message": "meeting at 5",
+  "meeting": { "title": "", "time": "" },
+  "task": "",
+  "date": "",
+  "time": "",
+  "app": ""
+}
+
+Input: Schedule a meeting at 6 PM
+Output:
+{
+  "action": "schedule_meeting",
+  "to": "",
+  "subject": "",
+  "message": "",
+  "meeting": {
+    "title": "Meeting",
+    "time": "18:00"
+  },
+  "task": "",
+  "date": "",
+  "time": "",
+  "app": ""
+}
+
+Input: Email boss and schedule meeting at 7 PM
+Output:
+{
+  "action": "email_and_schedule",
+  "to": "boss@example.com",
+  "subject": "Meeting",
+  "message": "Meeting at 7 PM",
+  "meeting": {
+    "title": "Meeting",
+    "time": "19:00"
+  },
+  "task": "",
+  "date": "",
+  "time": "",
+  "app": ""
+}
+
+Input: Open Chrome
+Output:
+{
+  "action": "open_app",
+  "to": "",
+  "subject": "",
+  "message": "",
+  "meeting": { "title": "", "time": "" },
+  "task": "",
+  "date": "",
+  "time": "",
+  "app": "chrome"
+}
+
+-------------------------------------
+
+Sentence: "${text}"`
               }
             ]
           }
@@ -87,8 +184,12 @@ Sentence: "${text}"
 
   console.log("FULL GEMINI RESPONSE:", data);
 
+  if (data?.error) {
+    throw new Error(`Gemini API Error: ${data.error.message}`);
+  }
+
   if (!data?.candidates?.[0]?.content?.parts?.[0]?.text) {
-    throw new Error("Invalid Gemini response");
+    throw new Error("Invalid Gemini response: missing text");
   }
 
   let aiText = data.candidates[0].content.parts[0].text;
@@ -96,8 +197,6 @@ Sentence: "${text}"
   aiText = aiText.replace(/```json/g, "").replace(/```/g, "").trim();
 
   const parsed = JSON.parse(aiText);
-
-  parsed.priority = parsed.priority || "normal";
 
   return parsed;
 }

@@ -5,7 +5,7 @@
   "identifier": "com.voice.nova",
   "build": {
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:5173",
+    "devUrl": "http://localhost:1420",
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build"
   },
@@ -13,14 +13,20 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Nova",
-        "width": 420,
-        "height": 200,
+        "label": "main",
+        "title": "Voice Workflow Assistant",
+        "url": "http://localhost:5173"
+      },
+      {
+        "label": "assistant",
+        "url": "assistant.html",
         "visible": false,
+        "transparent": true,
         "decorations": false,
         "alwaysOnTop": true,
-        "resizable": false,
-        "fullscreen": false
+        "fullscreen": true,
+        "skipTaskbar": true,
+        "resizable": false
       }
     ],
     "security": {

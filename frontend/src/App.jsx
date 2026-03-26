@@ -1,80 +1,137 @@
-import { useState } from "react";
-import recognition from "./voice/speechRecognition";
+import { useState, useEffect, useRef } from "react";
+import { startRecognition, stopRecognition } from "./voice/speechRecognition";
 import { detectIntentWithGemini } from "./ai/aiParser";
 import { executeWorkflow } from "./workflows/workflowExecutor";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import "./App.css";
 
 function App() {
+  const [text, setText] = useState("");
+  const [status, setStatus] = useState("idle"); // idle | listening | processing | executed
+  const executionLocked = useRef(false);
 
-  const [text, setText] = useState("Click microphone to start listening 🎤");
+  useEffect(() => {
+    // When the Tauri Global Shortcut triggers this window natively via shortcut...
+    // Boot up the Mic completely automatically. Ensure we only start if genuinely idle.
+    const startSequence = () => {
+       if (!executionLocked.current) {
+           startListeningAuto();
+       }
+    };
 
-  const startListening = () => {
+    const timer = setTimeout(startSequence, 100);
 
-    if (!recognition) {
-      setText("Speech recognition not supported.");
-      return;
-    }
-
-    recognition.start();
-
-    recognition.onresult = async (event) => {
-
-      const transcript = event.results[0][0].transcript;
-
-      setText(transcript);
-
-      try {
-
-        // Send speech to Gemini
-        const intent = await detectIntentWithGemini(transcript);
-
-        console.log("Gemini Parsed Intent:", intent);
-
-        // Execute workflow directly (no JSON.parse needed)
-        executeWorkflow(intent);
-
-      } catch (error) {
-
-        console.error("Gemini parsing failed:", error);
-
+    const handleKeyDown = async (e) => {
+      // Emergency escape route matches Siri/Spotlight behavior if user changes mind
+      if (e.key === "Escape") {
+        await escapeOverlay();
       }
-
     };
+    window.addEventListener("keydown", handleKeyDown);
 
-    recognition.onerror = () => {
-      setText("Microphone error detected.");
+    // If the window is explicitly shown by the Rust layer subsequently
+    let unlisten = null;
+    getCurrentWindow().listen("tauri://focus", () => {
+        startSequence();
+    }).then(u => { unlisten = u; });
+
+    return () => {
+        window.removeEventListener("keydown", handleKeyDown);
+        clearTimeout(timer);
+        if (unlisten) unlisten();
     };
+  }, []);
 
+  const startListeningAuto = () => {
+    setText("");
+    setStatus("listening");
+    executionLocked.current = false;
+    startRecognition(handleResult, handleError);
+  };
+
+  const handleResult = async (transcript, isFinal, isSilentEnd = false) => {
+    if (transcript) setText(transcript);
+
+    if (isFinal && !isSilentEnd && !executionLocked.current) {
+        if (!transcript.trim()) return;
+        
+        executionLocked.current = true;
+        setStatus("processing");
+
+        try {
+          const intent = await detectIntentWithGemini(transcript);
+          
+          await executeWorkflow(intent);
+          
+          setStatus("executed");
+
+          setTimeout(() => {
+            escapeOverlay();
+          }, 1000); // Allow brief glow flash mapping execution
+
+        } catch (error) {
+          console.error("Gemini failed:", error);
+          setText("Assistant Failed To Parse Intent.");
+          setStatus("executed");
+          setTimeout(() => {
+            escapeOverlay();
+          }, 2000);
+        }
+    } else if (isFinal && isSilentEnd && !executionLocked.current) {
+        // Organic silent timeout or system cancel
+        escapeOverlay();
+    }
+  };
+
+  const handleError = (errorMsg, errorCode, isFatal) => {
+    if (isFatal && !executionLocked.current) {
+      executionLocked.current = true;
+      setText(errorMsg);
+      setStatus("executed");
+      setTimeout(() => escapeOverlay(), 1500);
+    }
+  };
+
+  const escapeOverlay = async () => {
+    stopRecognition();
+    setStatus("idle");
+    setText("");
+    executionLocked.current = false;
+    try { 
+        await getCurrentWindow().hide(); 
+    } catch(e) {}
   };
 
   return (
-    <div
-      style={{
-        height: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        alignItems: "center",
-        background: "#0f172a",
-        color: "white",
-        fontSize: "22px",
-      }}
-    >
+    <div className={`overlay-container ${status}`}>
+      <div className="edge-glow"></div>
+      <div className="radial-blur"></div>
+      
+      <div className="interaction-zone">
+        <div className="live-transcript">
+          {text}
+        </div>
 
-      <div>{text}</div>
-
-      <button
-        onClick={startListening}
-        style={{
-          marginTop: "20px",
-          padding: "10px 20px",
-          fontSize: "18px",
-          borderRadius: "8px",
-          cursor: "pointer"
-        }}
-      >
-        🎤 Start Listening
-      </button>
-
+        <div className={`mic-orb ${status}`}>
+           <div className="waveform-ripple"></div>
+           <div className="orb-core"></div>
+           <svg 
+             xmlns="http://www.w3.org/2000/svg" 
+             width="28" height="28" 
+             viewBox="0 0 24 24" 
+             fill="none" 
+             stroke="currentColor" 
+             strokeWidth="2" 
+             strokeLinecap="round" 
+             strokeLinejoin="round" 
+             className="mic-icon"
+           >
+             <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+             <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+             <line x1="12" x2="12" y1="19" y2="22"/>
+           </svg>
+        </div>
+      </div>
     </div>
   );
 }
