@@ -1,24 +1,29 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use tauri::Manager;
-use tauri_plugin_global_shortcut::{Builder, Shortcut, ShortcutState};
+use tauri_plugin_global_shortcut::{Builder as ShortcutBuilder, Shortcut, ShortcutState};
 
 fn main() {
     tauri::Builder::default()
 
-        // Enable shell plugin (required for opening external URLs)
+        // Enable opener plugin (required for opening URLs like YouTube)
+        .plugin(tauri_plugin_opener::init())
+
+        // Enable shell plugin
         .plugin(tauri_plugin_shell::init())
+
+        // Enable logging plugin
+        .plugin(tauri_plugin_log::Builder::default().build())
 
         // Enable global shortcut plugin
         .plugin(
-            Builder::new()
+            ShortcutBuilder::new()
                 .with_shortcuts(["Ctrl+Shift+V"])
                 .unwrap()
                 .with_handler(|app, shortcut, event| {
 
                     let expected: Shortcut = "Ctrl+Shift+V".parse().unwrap();
 
-                    // Only trigger when shortcut key is pressed
                     if shortcut == &expected && event.state == ShortcutState::Pressed {
 
                         if let Some(window) = app.get_webview_window("main") {
@@ -47,6 +52,7 @@ fn main() {
             Ok(())
         })
 
+        // Run application
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

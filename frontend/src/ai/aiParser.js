@@ -1,9 +1,50 @@
 export async function detectIntentWithGemini(text) {
 
+  const command = text.toLowerCase().trim();
+
+  // ---------- LOCAL RULE ENGINE (NO GEMINI CALL) ----------
+  if (command.includes("youtube")) {
+    return {
+      task: "open_youtube",
+      date: "",
+      time: "",
+      priority: "normal"
+    };
+  }
+
+  if (command.includes("calculator")) {
+    return {
+      task: "open_calculator",
+      date: "",
+      time: "",
+      priority: "normal"
+    };
+  }
+
+  if (command.includes("whatsapp")) {
+    return {
+      task: "open_whatsapp",
+      date: "",
+      time: "",
+      priority: "normal"
+    };
+  }
+
+  if (command.includes("reminder") || command.includes("remind")) {
+    return {
+      task: "set_reminder",
+      date: "",
+      time: "",
+      priority: "normal"
+    };
+  }
+
+  // ---------- GEMINI FALLBACK ONLY WHEN NEEDED ----------
+
   const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
     {
       method: "POST",
       headers: {
