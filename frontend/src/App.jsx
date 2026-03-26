@@ -1,8 +1,10 @@
 import { useState } from "react";
 import recognition from "./voice/speechRecognition";
 import { detectIntentWithGemini } from "./ai/aiParser";
+import { executeWorkflow } from "./workflows/workflowExecutor";
 
 function App() {
+
   const [text, setText] = useState("Click microphone to start listening 🎤");
 
   const startListening = () => {
@@ -16,27 +18,32 @@ function App() {
 
     recognition.onresult = async (event) => {
 
-  const transcript = event.results[0][0].transcript;
+      const transcript = event.results[0][0].transcript;
 
-  setText(transcript);
+      setText(transcript);
 
-  try {
+      try {
 
-    const intent = await detectIntentWithGemini(transcript);
+        // Send speech to Gemini
+        const intent = await detectIntentWithGemini(transcript);
 
-    console.log("Gemini Intent:", intent);
+        console.log("Gemini Parsed Intent:", intent);
 
-  } catch (error) {
+        // Execute workflow directly (no JSON.parse needed)
+        executeWorkflow(intent);
 
-    console.error("Gemini parsing failed:", error);
+      } catch (error) {
 
-  }
+        console.error("Gemini parsing failed:", error);
 
-};
+      }
+
+    };
 
     recognition.onerror = () => {
       setText("Microphone error detected.");
     };
+
   };
 
   return (
@@ -52,6 +59,7 @@ function App() {
         fontSize: "22px",
       }}
     >
+
       <div>{text}</div>
 
       <button
@@ -66,6 +74,7 @@ function App() {
       >
         🎤 Start Listening
       </button>
+
     </div>
   );
 }

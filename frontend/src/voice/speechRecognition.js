@@ -5,7 +5,8 @@ let recognition = null;
 
 if (SpeechRecognition) {
   recognition = new SpeechRecognition();
-  recognition.continuous = true;
+
+  recognition.continuous = false; // listens once per command
   recognition.lang = "en-US";
   recognition.interimResults = false;
 }

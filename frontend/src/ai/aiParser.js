@@ -15,7 +15,15 @@ export async function detectIntentWithGemini(text) {
             parts: [
               {
                 text: `
-Extract task details and return ONLY JSON:
+Extract task details and return STRICT JSON.
+
+Rules:
+- Always return all fields
+- If date missing return ""
+- If time missing return ""
+- If priority missing return "normal"
+
+Return format:
 
 {
   "task": "",
@@ -39,7 +47,7 @@ Sentence: "${text}"
   console.log("FULL GEMINI RESPONSE:", data);
 
   if (!data?.candidates?.[0]?.content?.parts?.[0]?.text) {
-    throw new Error("Invalid Gemini response structure");
+    throw new Error("Invalid Gemini response");
   }
 
   let aiText = data.candidates[0].content.parts[0].text;
