@@ -1,101 +1,293 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ═══════════════════════════════════════
+   1. Design System Variables
+   ═══════════════════════════════════════ */
 @layer base {
+  :root {
+    /* Core Colors */
+    --bg-primary: #F5F7FA;
+    --text-primary: #1F2937;
+    --text-secondary: #4B5563;
+    
+    /* Brand Spectrum */
+    --primary-cyan: #3DDCFF;
+    --primary-purple: #8B5CF6;
+    --primary-lavender: #C4B5FD;
+    
+    /* Interactive */
+    --button-bg: #1F2937;
+    --button-text: #FFFFFF;
+    
+    /* Glassmorphism System */
+    --glass-bg: rgba(255, 255, 255, 0.6);
+    --glass-border: rgba(255, 255, 255, 0.7);
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.04);
+    --glass-blur: 24px;
+    
+    /* Shadow Tokens */
+    --shadow-premium: 0 24px 64px -16px rgba(0, 0, 0, 0.08), 0 8px 20px -8px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    --shadow-glow: 0 0 40px rgba(61,220,255,0.25), 0 0 80px rgba(139,92,246,0.18);
+  }
+
+  /* Built-in Dark Mode Configuration */
+  .dark {
+    --bg-primary: #0F172A;
+    --text-primary: #F8FAFC;
+    --text-secondary: #94A3B8;
+    
+    --button-bg: #F8FAFC;
+    --button-text: #0F172A;
+    
+    --glass-bg: rgba(15, 23, 42, 0.6);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    
+    --shadow-premium: 0 24px 64px -16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
   body {
-    @apply bg-mist-bg text-soft-graphite font-sans antialiased overflow-x-hidden;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    @apply font-sans antialiased overflow-x-hidden transition-colors duration-300;
+    
+    /* GPU accelerated gentle radial background */
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(61,220,255,0.08), transparent),
+      radial-gradient(ellipse 60% 40% at 80% 100%, rgba(139,92,246,0.06), transparent);
+  }
+
+  ::selection {
+    background: rgba(61, 220, 255, 0.2);
+    color: var(--text-primary);
+  }
+
+  * {
+    scroll-behavior: smooth;
   }
 }
 
+/* ═══════════════════════════════════════
+   2. Reusable Utility Classes
+   ═══════════════════════════════════════ */
+@layer utilities {
+  .flex-center {
+    @apply flex items-center justify-center;
+  }
+
+  .transition-smooth {
+    transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .hover-lift {
+    @apply transition-smooth;
+    will-change: transform;
+  }
+  .hover-lift:hover {
+    transform: translateY(-4px);
+  }
+
+  .gpu-accelerate {
+    transform: translateZ(0);
+    will-change: transform, opacity;
+  }
+}
+
+/* ═══════════════════════════════════════
+   3. Noise Overlay 
+   ═══════════════════════════════════════ */
 .noise-overlay {
   position: fixed;
   inset: 0;
   z-index: 50;
   pointer-events: none;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-  opacity: 0.03;
+  opacity: 0.025;
+  mix-blend-mode: overlay;
+  will-change: transform; /* Hint for compositing layers */
 }
 
+/* ═══════════════════════════════════════
+   4. Component Layer (Buttons, Glass, Shadows)
+   ═══════════════════════════════════════ */
 @layer components {
-  .btn-primary {
-    @apply relative overflow-hidden bg-soft-graphite text-white text-base font-semibold px-8 py-3.5 rounded-full flex items-center justify-center gap-2;
+  /* ── UI Button Core ── */
+  .ui-btn-primary {
+    @apply relative overflow-hidden text-base font-semibold px-8 py-3.5 rounded-full flex items-center justify-center gap-2;
+    background-color: var(--button-bg);
+    color: var(--button-text);
     transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
     box-shadow: 0 8px 24px -6px rgba(18, 20, 22, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    will-change: transform, box-shadow;
   }
   
-  .btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 16px 40px -8px rgba(61, 220, 255, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  /* Added: Subtle shine ripple approach on hover */
+  .ui-btn-primary::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(120deg, transparent, rgba(255,255,255,0.2), transparent);
+    transform: translateX(-100%);
+    transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .ui-btn-primary:hover::after {
+    transform: translateX(100%);
   }
 
-  .glass-blur {
-    @apply bg-white/70 backdrop-blur-3xl border border-white/80 shadow-[0_8px_32px_rgba(0,0,0,0.02)];
+  .ui-btn-primary:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow:
+      0 20px 50px -10px rgba(61, 220, 255, 0.3),
+      0 0 0 1px rgba(61, 220, 255, 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
   }
 
+  /* Backward compatibility alias from original code */
+  .btn-primary {
+    @apply ui-btn-primary;
+  }
+
+  /* ── UI Glass Panel System ── */
+  .ui-glass-panel {
+    background-color: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 -1px 0 rgba(0, 0, 0, 0.02);
+    will-change: backdrop-filter;
+  }
+  
+  /* Backward compat */
+  .glass-blur { @apply ui-glass-panel; }
   .glass-card {
-    @apply backdrop-blur-md bg-white/40 border border-white/20 shadow-assistant-glow rounded-2xl;
+    @apply backdrop-blur-md bg-white/40 border border-white/20 rounded-2xl;
+    box-shadow: 0 0 40px rgba(61, 220, 255, 0.08), 0 0 80px rgba(139, 92, 246, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.3);
   }
+  .blur-panel { @apply backdrop-blur-lg bg-white/30 rounded-xl; }
 
-  .blur-panel {
-    @apply backdrop-blur-lg bg-white/30 rounded-xl;
+  /* ── Shadow System ── */
+  .ui-shadow-premium {
+    box-shadow: var(--shadow-premium);
   }
-
-  .glow-ring {
-    @apply shadow-assistant-glow;
-  }
-
-  .assistant-surface {
-    background-image: theme("backgroundImage.assistant-gradient");
+  .premium-shadow { @apply ui-shadow-premium; }
+  
+  .premium-shadow-lg {
+    box-shadow: 0 40px 100px -20px rgba(0, 0, 0, 0.1), 0 16px 40px -8px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.4);
   }
 }
 
+/* ═══════════════════════════════════════
+   5. Interactive Hover & Glow States
+   ═══════════════════════════════════════ */
 .glow-hover {
   transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, box-shadow;
 }
 .glow-hover:hover {
-  box-shadow: 0 16px 48px -12px rgba(139, 92, 246, 0.15), inset 0 0 0 1px rgba(61, 220, 255, 0.1);
-  transform: translateY(-2px);
+  box-shadow:
+    0 16px 48px -12px rgba(139, 92, 246, 0.2),
+    0 0 0 1px var(--primary-cyan),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+  transform: translateY(-3px);
 }
 
-.premium-shadow {
-  box-shadow: 0 24px 64px -16px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+.glow-ring {
+  box-shadow: var(--shadow-glow);
 }
 
-.energy-bloom {
-  background: radial-gradient(circle, rgba(61,220,255,0.12) 0%, rgba(139,92,246,0.08) 35%, rgba(248,249,250,0) 70%);
-}
-
+/* ═══════════════════════════════════════
+   6. Gradient System 
+   ═══════════════════════════════════════ */
 .text-gradient {
-  background: linear-gradient(135deg, #3DDCFF, #8B5CF6);
+  background: linear-gradient(135deg, var(--primary-cyan) 0%, var(--primary-purple) 50%, var(--primary-lavender) 100%);
+  background-size: 200% auto;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-/* Linear-style abstract waveform */
-.waveform-bar {
-  width: 4px;
-  background: linear-gradient(to top, #3DDCFF, #8B5CF6);
-  border-radius: 4px;
-  animation: waveform 1.5s ease-in-out infinite;
-  display: inline-block;
-  margin: 0 4px;
-  opacity: 0.6;
+.gradient-border {
+  position: relative;
+}
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(61,220,255,0.2), rgba(139,92,246,0.2), rgba(61,220,255,0.2));
+  background-size: 300% 300%;
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.5s;
+  will-change: opacity;
+}
+.gradient-border:hover::before {
+  opacity: 1;
 }
 
-.waveform-bar:nth-child(1) { height: 16px; animation-delay: 0.0s; }
-.waveform-bar:nth-child(2) { height: 32px; animation-delay: 0.2s; }
-.waveform-bar:nth-child(3) { height: 24px; animation-delay: 0.4s; }
-.waveform-bar:nth-child(4) { height: 44px; animation-delay: 0.6s; }
-.waveform-bar:nth-child(5) { height: 24px; animation-delay: 0.8s; }
-.waveform-bar:nth-child(6) { height: 32px; animation-delay: 1.0s; }
-.waveform-bar:nth-child(7) { height: 16px; animation-delay: 1.2s; }
+/* ═══════════════════════════════════════
+   7. Background Animations & Effects
+   ═══════════════════════════════════════ */
+.energy-bloom {
+  background:
+    radial-gradient(circle at 40% 40%, rgba(61,220,255,0.15) 0%, transparent 50%),
+    radial-gradient(circle at 60% 60%, rgba(139,92,246,0.12) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(79,209,197,0.06) 0%, transparent 70%);
+  will-change: transform, opacity;
+}
 
-@keyframes waveform {
-  0%, 100% { transform: scaleY(0.7); opacity: 0.4; }
-  50% { transform: scaleY(1.3); opacity: 0.9; }
+/* ═══════════════════════════════════════
+   8. Animation CPU Optimization (Prefers Reduced Motion)
+   ═══════════════════════════════════════ */
+@media (prefers-reduced-motion: no-preference) {
+  .text-gradient {
+    animation: textShimmer 4s ease infinite;
+  }
+  .gradient-border::before {
+    animation: borderShift 6s ease infinite;
+  }
+  .energy-bloom {
+    animation: bloomPulse 8s ease-in-out infinite;
+  }
+}
+
+@keyframes textShimmer {
+  0%, 100% { background-position: 0% center; }
+  50% { background-position: 200% center; }
+}
+
+@keyframes borderShift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes bloomPulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+/* ═══════════════════════════════════════
+   9. Mobile Performance Optimization
+   ═══════════════════════════════════════ */
+@media (max-width: 768px) {
+  :root {
+    /* Significantly reduces GPU stress on mobile devices */
+    --glass-blur: 10px; 
+  }
+
+  /* Disable heavy multi-radial blooming on mobile */
+  .energy-bloom {
+    animation: none;
+    background: radial-gradient(circle at 50% 50%, rgba(61,220,255,0.12) 0%, transparent 70%);
+  }
+  
+  /* Simplify premium box-shadow processing */
+  .ui-shadow-premium {
+    box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  }
 }
