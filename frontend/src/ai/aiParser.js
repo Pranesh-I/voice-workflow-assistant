@@ -1,4 +1,7 @@
 export async function detectIntentWithGemini(text) {
+  if (!text || text.trim().length === 0) {
+    return null;
+  }
 
   const command = text.toLowerCase().trim();
 
@@ -194,9 +197,31 @@ Sentence: "${text}"`
 
   let aiText = data.candidates[0].content.parts[0].text;
 
-  aiText = aiText.replace(/```json/g, "").replace(/```/g, "").trim();
+  aiText = aiText
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
+    .replace(/\n/g, " ")
+    .trim();
 
-  const parsed = JSON.parse(aiText);
+  let parsed;
+  try {
+    parsed = JSON.parse(aiText);
+  } catch (err) {
+    console.error("Gemini returned invalid JSON:", aiText);
+    return {
+      action: "",
+      to: "",
+      subject: "",
+      message: "",
+      meeting: { title: "", time: "" },
+      task: "",
+      date: "",
+      time: "",
+      app: ""
+    };
+  }
+
+  console.log("Parsed Intent JSON:", parsed);
 
   return parsed;
 }

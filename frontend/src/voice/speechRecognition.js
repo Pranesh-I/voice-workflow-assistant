@@ -3,6 +3,7 @@ const SpeechRecognition =
 
 let recognition = null;
 let isListening = false;
+let stoppedIntentionally = false;
 
 if (SpeechRecognition) {
   recognition = new SpeechRecognition();
@@ -70,14 +71,16 @@ export function startRecognition(onResult, onError) {
   };
 
   recognition.onend = () => {
-    // Fired when the mic closes organically or explicitly.
-    if (isListening) {
+    // Only signal a silent end if the mic ended ON ITS OWN (not from our stopRecognition call)
+    if (isListening && !stoppedIntentionally) {
       isListening = false;
-      onResult("", true, true); 
+      onResult("", true, true);
     }
+    isListening = false;
   };
 
   try {
+    stoppedIntentionally = false; // Clear flag before each fresh start
     recognition.start();
     isListening = true;
   } catch (err) {
@@ -89,6 +92,7 @@ export function startRecognition(onResult, onError) {
 
 export function stopRecognition() {
   if (recognition && isListening) {
+    stoppedIntentionally = true; // Signal that WE stopped it, not the user
     try { recognition.abort(); } catch (_) { /* ignore */ }
     isListening = false;
   }

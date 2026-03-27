@@ -14,9 +14,9 @@ function App() {
     // When the Tauri Global Shortcut triggers this window natively via shortcut...
     // Boot up the Mic completely automatically. Ensure we only start if genuinely idle.
     const startSequence = () => {
-       if (!executionLocked.current) {
-           startListeningAuto();
-       }
+      if (!executionLocked.current) {
+        startListeningAuto();
+      }
     };
 
     const timer = setTimeout(startSequence, 100);
@@ -32,13 +32,15 @@ function App() {
     // If the window is explicitly shown by the Rust layer subsequently
     let unlisten = null;
     getCurrentWindow().listen("tauri://focus", () => {
-        startSequence();
+      // Delay slightly so the browser finishes cleaning up the previous
+      // recognition session before we call start() again.
+      setTimeout(() => startSequence(), 400);
     }).then(u => { unlisten = u; });
 
     return () => {
-        window.removeEventListener("keydown", handleKeyDown);
-        clearTimeout(timer);
-        if (unlisten) unlisten();
+      window.removeEventListener("keydown", handleKeyDown);
+      clearTimeout(timer);
+      if (unlisten) unlisten();
     };
   }, []);
 
@@ -53,33 +55,36 @@ function App() {
     if (transcript) setText(transcript);
 
     if (isFinal && !isSilentEnd && !executionLocked.current) {
-        if (!transcript.trim()) return;
-        
-        executionLocked.current = true;
-        setStatus("processing");
+      if (!transcript.trim()) return;
 
-        try {
-          const intent = await detectIntentWithGemini(transcript);
-          
-          await executeWorkflow(intent);
-          
-          setStatus("executed");
+      executionLocked.current = true;
+      setStatus("processing");
 
-          setTimeout(() => {
-            escapeOverlay();
-          }, 1000); // Allow brief glow flash mapping execution
+      try {
+        const intent = await detectIntentWithGemini(transcript);
 
-        } catch (error) {
-          console.error("Gemini failed:", error);
-          setText("Assistant Failed To Parse Intent.");
-          setStatus("executed");
-          setTimeout(() => {
-            escapeOverlay();
-          }, 2000);
+        if (!intent || !intent.action) {
+          console.warn("No intent detected.");
+          escapeOverlay();
+          return;
         }
-    } else if (isFinal && isSilentEnd && !executionLocked.current) {
-        // Organic silent timeout or system cancel
+
+        console.log("Intent:", intent);
+        await executeWorkflow(intent);
+
+        setStatus("executed");
+
+        setTimeout(() => {
+          escapeOverlay();
+        }, 2000); // 2 second visible then close
+
+      } catch (error) {
+        console.error("Gemini API request failed completely:", error);
         escapeOverlay();
+      }
+    } else if (isFinal && isSilentEnd && !executionLocked.current) {
+      // Organic silent timeout or system cancel
+      escapeOverlay();
     }
   };
 
@@ -97,39 +102,44 @@ function App() {
     setStatus("idle");
     setText("");
     executionLocked.current = false;
-    try { 
-        await getCurrentWindow().hide(); 
-    } catch(e) {}
+    try {
+      await getCurrentWindow().hide();
+    } catch (e) { }
   };
 
   return (
     <div className={`overlay-container ${status}`}>
-      <div className="edge-glow"></div>
+      <div className="edge-glow">
+        <span className="eg-top"></span>
+        <span className="eg-right"></span>
+        <span className="eg-bottom"></span>
+        <span className="eg-left"></span>
+      </div>
       <div className="radial-blur"></div>
-      
+
       <div className="interaction-zone">
         <div className="live-transcript">
           {text}
         </div>
 
         <div className={`mic-orb ${status}`}>
-           <div className="waveform-ripple"></div>
-           <div className="orb-core"></div>
-           <svg 
-             xmlns="http://www.w3.org/2000/svg" 
-             width="28" height="28" 
-             viewBox="0 0 24 24" 
-             fill="none" 
-             stroke="currentColor" 
-             strokeWidth="2" 
-             strokeLinecap="round" 
-             strokeLinejoin="round" 
-             className="mic-icon"
-           >
-             <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-             <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-             <line x1="12" x2="12" y1="19" y2="22"/>
-           </svg>
+          <div className="waveform-ripple"></div>
+          <div className="orb-core"></div>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="28" height="28"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="mic-icon"
+          >
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+            <line x1="12" x2="12" y1="19" y2="22" />
+          </svg>
         </div>
       </div>
     </div>
