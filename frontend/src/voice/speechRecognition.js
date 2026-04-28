@@ -23,16 +23,18 @@ const ERROR_MESSAGES = {
   "service-not-allowed": "Speech recognition blocked.",
 };
 
-export function startRecognition(onResult, onError) {
+export function startRecognition(onResult, onError, isDictation = false) {
   if (!recognition) {
     onError("Speech recognition not supported in this environment.", "unsupported", true);
     return;
   }
 
+  recognition.continuous = !!isDictation;
+
   if (isListening) {
     try { recognition.abort(); } catch (_) { /* ignore */ }
     isListening = false;
-    setTimeout(() => startRecognition(onResult, onError), 200);
+    setTimeout(() => startRecognition(onResult, onError, isDictation), 200);
     return;
   }
 

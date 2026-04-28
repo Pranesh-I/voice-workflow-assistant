@@ -26,24 +26,200 @@ const handleDownloadClick = () => {
 };
 
 /* ────────────────────────────────────────────
-   Interactive Particles (Advanced Space Filler)
+   Animated Particle Background (Glowing Dots + Lines)
    ──────────────────────────────────────────── */
-function InteractiveParticles() {
+function ParticleBackground() {
+  const canvasRef = useRef(null);
+  const mouse = useRef({ x: null, y: null, radius: 150 });
+  const particles = useRef([]);
+  const raf = useRef(null);
+  const dims = useRef({ w: 0, h: 0 });
+
+  // Brand-aligned color palette (indigo ↔ violet ↔ lavender ↔ teal accents)
+  const COLORS = useRef([
+    { r: 79, g: 70, b: 229 },  // #4F46E5 – indigo
+    { r: 99, g: 102, b: 241 }, // #6366F1 – indigo-light
+    { r: 139, g: 92, b: 246 }, // #8B5CF6 – violet
+    { r: 167, g: 139, b: 250 },// #A78BFA – lavender
+  ]);
+
+  const LINE_COLOR = 'rgba(99, 102, 241, ';
+
+  const createParticle = useCallback((w, h) => {
+    const c = COLORS.current[Math.floor(Math.random() * COLORS.current.length)];
+    return {
+      x: Math.random() * w,
+      y: Math.random() * h,
+      size: Math.random() * 2 + 0.5,
+      density: (Math.random() * 30) + 5,
+      vx: (Math.random() - 0.5) * 0.6,
+      vy: (Math.random() - 0.5) * 0.6,
+      alpha: Math.random() * 0.5 + 0.2,
+      color: c,
+      colorStr: `rgb(${c.r}, ${c.g}, ${c.b})`,
+    };
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d', { alpha: true });
+    const dpr = window.devicePixelRatio || 1;
+
+    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReduced) return;
+
+    const resize = () => {
+      dims.current.w = window.innerWidth;
+      dims.current.h = document.documentElement.scrollHeight;
+      canvas.width = dims.current.w * dpr;
+      canvas.height = dims.current.h * dpr;
+      canvas.style.width = dims.current.w + 'px';
+      canvas.style.height = dims.current.h + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    resize();
+
+    // Init particles
+    const count = Math.min(Math.floor(dims.current.w / 12), 100);
+    particles.current = Array.from({ length: count }, () =>
+      createParticle(dims.current.w, dims.current.h)
+    );
+
+    const onMouse = (e) => {
+      mouse.current.x = e.clientX;
+      mouse.current.y = e.clientY + window.scrollY;
+    };
+    const onLeave = () => {
+      mouse.current.x = null;
+      mouse.current.y = null;
+    };
+
+    const connectParticles = () => {
+      const pts = particles.current;
+      for (let a = 0; a < pts.length; a++) {
+        for (let b = a + 1; b < pts.length; b++) {
+          const dx = pts[a].x - pts[b].x;
+          const dy = pts[a].y - pts[b].y;
+          const distSq = dx * dx + dy * dy;
+          if (distSq < 18000) {
+            const opacity = (1 - (distSq / 18000)) * 0.2;
+            ctx.beginPath();
+            ctx.strokeStyle = LINE_COLOR + opacity + ')';
+            ctx.lineWidth = 0.8;
+            ctx.moveTo(pts[a].x, pts[a].y);
+            ctx.lineTo(pts[b].x, pts[b].y);
+            ctx.stroke();
+          }
+        }
+      }
+    };
+
+    const drawBg = () => {
+      const { w, h } = dims.current;
+      ctx.clearRect(0, 0, w, h);
+
+      // Subtle radial gradient background tint
+      const gradient = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.7);
+      gradient.addColorStop(0, 'rgba(139, 92, 246, 0.03)');
+      gradient.addColorStop(1, 'rgba(61, 220, 255, 0.01)');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, w, h);
+    };
+
+    const animate = () => {
+      const { w, h } = dims.current;
+      drawBg();
+
+      const mx = mouse.current.x;
+      const my = mouse.current.y;
+      const mRadius = mouse.current.radius;
+
+      particles.current.forEach((p) => {
+        // Movement
+        p.x += p.vx;
+        p.y += p.vy;
+
+        // Wrap around
+        if (p.x < 0) p.x = w;
+        if (p.x > w) p.x = 0;
+        if (p.y < 0) p.y = h;
+        if (p.y > h) p.y = 0;
+
+        // Mouse repulsion
+        if (mx != null && my != null) {
+          const dx = mx - p.x;
+          const dy = my - p.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < mRadius && dist > 0) {
+            const force = (mRadius - dist) / mRadius;
+            p.x -= (dx / dist) * force * p.density * 0.08;
+            p.y -= (dy / dist) * force * p.density * 0.08;
+          }
+        }
+
+        // Draw glow
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = p.colorStr;
+        ctx.fillStyle = p.colorStr;
+        ctx.globalAlpha = p.alpha;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+      });
+
+      connectParticles();
+      raf.current = requestAnimationFrame(animate);
+    };
+
+    animate();
+
+    window.addEventListener('resize', resize);
+    window.addEventListener('mousemove', onMouse);
+    document.addEventListener('mouseleave', onLeave);
+
+    return () => {
+      cancelAnimationFrame(raf.current);
+      window.removeEventListener('resize', resize);
+      window.removeEventListener('mousemove', onMouse);
+      document.removeEventListener('mouseleave', onLeave);
+    };
+  }, [createParticle]);
+
+  return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-[-1]" style={{ opacity: 0.7 }} />;
+}
+
+/* ────────────────────────────────────────────
+   Plexus Constellation Network (SkillMatchPro-style)
+   ──────────────────────────────────────────── */
+function PlexusNetwork() {
   const canvasRef = useRef(null);
   const mouse = useRef({ x: -1000, y: -1000 });
   const particles = useRef([]);
   const raf = useRef(null);
 
   const initParticles = useCallback((w, h) => {
-    const count = Math.min(100, Math.floor((w * h) / 14000));
-    particles.current = Array.from({ length: count }, () => ({
-      x: Math.random() * w,
-      y: Math.random() * h,
-      vx: (Math.random() - 0.5) * 0.3,
-      vy: (Math.random() - 0.5) * 0.3,
-      r: Math.random() * 1.5 + 0.5,
-      opacity: Math.random() * 0.3 + 0.1,
-    }));
+    // Dense particle count for a rich constellation feel
+    const count = Math.min(220, Math.floor((w * h) / 6000));
+    particles.current = Array.from({ length: count }, () => {
+      const isStar = Math.random() < 0.12; // 12% are bright "star" nodes
+      return {
+        x: Math.random() * w,
+        y: Math.random() * h,
+        vx: (Math.random() - 0.5) * 0.25,
+        vy: (Math.random() - 0.5) * 0.25,
+        r: isStar ? Math.random() * 3 + 2.5 : Math.random() * 2 + 1,
+        opacity: isStar ? Math.random() * 0.4 + 0.5 : Math.random() * 0.3 + 0.2,
+        isStar,
+        // Color variation: mix of violet & teal tones
+        hue: isStar ? (Math.random() > 0.5 ? 0 : 1) : Math.floor(Math.random() * 3), // 0=violet, 1=teal, 2=lavender
+        pulsePhase: Math.random() * Math.PI * 2,
+        pulseSpeed: Math.random() * 0.01 + 0.005,
+        connections: 0,
+      };
+    });
   }, []);
 
   useEffect(() => {
@@ -72,49 +248,126 @@ function InteractiveParticles() {
     window.addEventListener("mousemove", onMouse);
     document.addEventListener("mouseleave", onLeave);
 
+    // Color palette matching the brand
+    const colors = [
+      [139, 92, 246],  // violet
+      [61, 220, 255],  // teal/cyan
+      [196, 181, 253], // lavender
+    ];
+
+    let frame = 0;
+
     const draw = () => {
       ctx.clearRect(0, 0, w, h);
       const mx = mouse.current.x;
       const my = mouse.current.y;
-      const INTERACT_RADIUS = 120;
-      const LINE_DIST = 100;
+      const INTERACT_RADIUS = 180;
+      const LINE_DIST = 180;
+      const MOUSE_LINE_DIST = 250;
 
+      frame++;
+
+      // Reset connection counts
+      particles.current.forEach(p => { p.connections = 0; });
+
+      // Draw connection lines first (behind nodes)
+      for (let i = 0; i < particles.current.length; i++) {
+        for (let j = i + 1; j < particles.current.length; j++) {
+          const a = particles.current[i];
+          const b = particles.current[j];
+          const dx = a.x - b.x;
+          const dy = a.y - b.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < LINE_DIST) {
+            const alpha = 0.25 * (1 - dist / LINE_DIST);
+            // Gradient line color based on node types
+            const cA = colors[a.hue] || colors[0];
+            const cB = colors[b.hue] || colors[0];
+            const midR = (cA[0] + cB[0]) / 2;
+            const midG = (cA[1] + cB[1]) / 2;
+            const midB = (cA[2] + cB[2]) / 2;
+
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.strokeStyle = `rgba(${midR}, ${midG}, ${midB}, ${alpha})`;
+            ctx.lineWidth = a.isStar || b.isStar ? 1 : 0.6;
+            ctx.stroke();
+
+            a.connections++;
+            b.connections++;
+          }
+        }
+      }
+
+      // Draw mouse attraction lines
       particles.current.forEach((p) => {
-        p.x += p.vx; p.y += p.vy;
-        if (p.x < 0) p.x = w; if (p.x > w) p.x = 0;
-        if (p.y < 0) p.y = h; if (p.y > h) p.y = 0;
+        const dx = p.x - mx;
+        const dy = p.y - my;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < MOUSE_LINE_DIST && dist > 0) {
+          const alpha = 0.35 * (1 - dist / MOUSE_LINE_DIST);
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(mx, my);
+          ctx.strokeStyle = `rgba(61, 220, 255, ${alpha})`;
+          ctx.lineWidth = 0.8;
+          ctx.stroke();
+        }
+      });
 
+      // Update & draw particles
+      particles.current.forEach((p) => {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < -50) p.x = w + 50;
+        if (p.x > w + 50) p.x = -50;
+        if (p.y < -50) p.y = h + 50;
+        if (p.y > h + 50) p.y = -50;
+
+        // Mouse repulsion
         const dx = p.x - mx;
         const dy = p.y - my;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < INTERACT_RADIUS && dist > 0) {
           const force = (INTERACT_RADIUS - dist) / INTERACT_RADIUS;
           const angle = Math.atan2(dy, dx);
-          p.x += Math.cos(angle) * force * 1.5;
-          p.y += Math.sin(angle) * force * 1.5;
+          p.x += Math.cos(angle) * force * 2;
+          p.y += Math.sin(angle) * force * 2;
         }
 
+        // Pulsing opacity for stars
+        const pulse = p.isStar ? Math.sin(frame * p.pulseSpeed + p.pulsePhase) * 0.2 + 0.8 : 1;
+        const finalOpacity = p.opacity * pulse;
+        const c = colors[p.hue] || colors[0];
+
+        // Draw outer glow for star nodes & highly-connected nodes
+        if (p.isStar || p.connections > 4) {
+          const glowRadius = p.isStar ? p.r * 4 : p.r * 3;
+          const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, glowRadius);
+          gradient.addColorStop(0, `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${finalOpacity * 0.3})`);
+          gradient.addColorStop(1, `rgba(${c[0]}, ${c[1]}, ${c[2]}, 0)`);
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, glowRadius, 0, Math.PI * 2);
+          ctx.fillStyle = gradient;
+          ctx.fill();
+        }
+
+        // Draw the node
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(139, 92, 246, ${p.opacity})`;
+        ctx.fillStyle = `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${finalOpacity})`;
         ctx.fill();
+
+        // Bright center dot for star nodes
+        if (p.isStar) {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r * 0.4, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(255, 255, 255, ${finalOpacity * 0.8})`;
+          ctx.fill();
+        }
       });
 
-      for (let i = 0; i < particles.current.length; i++) {
-        for (let j = i + 1; j < particles.current.length; j++) {
-          const a = particles.current[i];
-          const b = particles.current[j];
-          const dist = Math.sqrt((a.x - b.x)**2 + (a.y - b.y)**2);
-          if (dist < LINE_DIST) {
-            ctx.beginPath();
-            ctx.moveTo(a.x, a.y);
-            ctx.lineTo(b.x, b.y);
-            ctx.strokeStyle = `rgba(61, 220, 255, ${0.05 * (1 - dist / LINE_DIST)})`;
-            ctx.lineWidth = 0.5;
-            ctx.stroke();
-          }
-        }
-      }
       raf.current = requestAnimationFrame(draw);
     };
     draw();
@@ -128,6 +381,328 @@ function InteractiveParticles() {
   }, [initParticles]);
 
   return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-[1]" />;
+}
+
+/* ────────────────────────────────────────────
+   Floating Geometric Shapes (diamonds, hexagons, triangles)
+   ──────────────────────────────────────────── */
+function FloatingGeometrics() {
+  const shapes = [
+    // Hexagons
+    { type: "hexagon", size: 60, x: "8%", y: "15%", rotate: 30, delay: 0, duration: 18, opacity: 0.08 },
+    { type: "hexagon", size: 90, x: "85%", y: "8%", rotate: -15, delay: 2, duration: 22, opacity: 0.06 },
+    { type: "hexagon", size: 45, x: "75%", y: "35%", rotate: 45, delay: 4, duration: 16, opacity: 0.07 },
+    { type: "hexagon", size: 70, x: "15%", y: "55%", rotate: 60, delay: 1, duration: 20, opacity: 0.05 },
+    { type: "hexagon", size: 55, x: "92%", y: "60%", rotate: 10, delay: 3, duration: 24, opacity: 0.06 },
+    { type: "hexagon", size: 80, x: "50%", y: "80%", rotate: -30, delay: 5, duration: 19, opacity: 0.04 },
+    // Diamonds
+    { type: "diamond", size: 35, x: "20%", y: "25%", rotate: 45, delay: 1.5, duration: 15, opacity: 0.1 },
+    { type: "diamond", size: 25, x: "65%", y: "12%", rotate: 30, delay: 3.5, duration: 17, opacity: 0.08 },
+    { type: "diamond", size: 40, x: "90%", y: "40%", rotate: 20, delay: 0.5, duration: 21, opacity: 0.07 },
+    { type: "diamond", size: 30, x: "5%", y: "70%", rotate: 60, delay: 2.5, duration: 14, opacity: 0.09 },
+    { type: "diamond", size: 20, x: "45%", y: "45%", rotate: 15, delay: 4.5, duration: 18, opacity: 0.06 },
+    // Triangles
+    { type: "triangle", size: 50, x: "35%", y: "10%", rotate: 0, delay: 2, duration: 20, opacity: 0.06 },
+    { type: "triangle", size: 40, x: "70%", y: "55%", rotate: 180, delay: 0, duration: 16, opacity: 0.07 },
+    { type: "triangle", size: 35, x: "12%", y: "85%", rotate: 90, delay: 3, duration: 22, opacity: 0.05 },
+    { type: "triangle", size: 55, x: "80%", y: "75%", rotate: -45, delay: 1, duration: 19, opacity: 0.04 },
+    // Circles (dot clusters)
+    { type: "circle", size: 8, x: "25%", y: "20%", rotate: 0, delay: 0, duration: 12, opacity: 0.15 },
+    { type: "circle", size: 6, x: "55%", y: "30%", rotate: 0, delay: 1, duration: 10, opacity: 0.12 },
+    { type: "circle", size: 10, x: "40%", y: "65%", rotate: 0, delay: 2, duration: 14, opacity: 0.1 },
+    { type: "circle", size: 5, x: "88%", y: "25%", rotate: 0, delay: 0.5, duration: 11, opacity: 0.18 },
+    { type: "circle", size: 7, x: "10%", y: "45%", rotate: 0, delay: 3, duration: 13, opacity: 0.14 },
+  ];
+
+  const renderShape = (shape) => {
+    const baseStyle = "absolute pointer-events-none";
+    
+    if (shape.type === "hexagon") {
+      return (
+        <svg width={shape.size} height={shape.size} viewBox="0 0 100 100" className={baseStyle}>
+          <polygon 
+            points="50,2 95,25 95,75 50,98 5,75 5,25" 
+            fill="none" 
+            stroke="url(#hexGrad)" 
+            strokeWidth="1.5"
+            opacity={shape.opacity}
+          />
+          <defs>
+            <linearGradient id="hexGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#8B5CF6" />
+              <stop offset="100%" stopColor="#3DDCFF" />
+            </linearGradient>
+          </defs>
+        </svg>
+      );
+    }
+    
+    if (shape.type === "diamond") {
+      return (
+        <svg width={shape.size} height={shape.size} viewBox="0 0 100 100" className={baseStyle}>
+          <polygon 
+            points="50,5 95,50 50,95 5,50"
+            fill="none"
+            stroke="url(#diamondGrad)"
+            strokeWidth="1.5"
+            opacity={shape.opacity}
+          />
+          <defs>
+            <linearGradient id="diamondGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#3DDCFF" />
+              <stop offset="100%" stopColor="#C4B5FD" />
+            </linearGradient>
+          </defs>
+        </svg>
+      );
+    }
+    
+    if (shape.type === "triangle") {
+      return (
+        <svg width={shape.size} height={shape.size} viewBox="0 0 100 100" className={baseStyle}>
+          <polygon
+            points="50,8 95,92 5,92"
+            fill="none"
+            stroke="url(#triGrad)"
+            strokeWidth="1.5"
+            opacity={shape.opacity}
+          />
+          <defs>
+            <linearGradient id="triGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#8B5CF6" />
+              <stop offset="50%" stopColor="#3DDCFF" />
+              <stop offset="100%" stopColor="#C4B5FD" />
+            </linearGradient>
+          </defs>
+        </svg>
+      );
+    }
+    
+    if (shape.type === "circle") {
+      return (
+        <div 
+          className={baseStyle} 
+          style={{
+            width: shape.size,
+            height: shape.size,
+            borderRadius: "50%",
+            background: `radial-gradient(circle, rgba(139,92,246,${shape.opacity}) 0%, rgba(61,220,255,${shape.opacity * 0.5}) 100%)`,
+            boxShadow: `0 0 ${shape.size * 2}px rgba(139,92,246,${shape.opacity * 0.5})`,
+          }}
+        />
+      );
+    }
+    return null;
+  };
+
+  return (
+    <div className="fixed inset-0 pointer-events-none z-[2] overflow-hidden">
+      {shapes.map((shape, i) => (
+        <motion.div
+          key={i}
+          initial={{ 
+            x: shape.x, 
+            y: shape.y, 
+            rotate: shape.rotate, 
+            opacity: 0 
+          }}
+          animate={{ 
+            y: [shape.y, `calc(${shape.y} - 30px)`, shape.y],
+            rotate: [shape.rotate, shape.rotate + 15, shape.rotate - 10, shape.rotate],
+            opacity: [0, 1, 1, 0],
+          }}
+          transition={{ 
+            duration: shape.duration, 
+            repeat: Infinity, 
+            delay: shape.delay,
+            ease: "easeInOut" 
+          }}
+          style={{ left: shape.x, top: shape.y }}
+          className="absolute"
+        >
+          {renderShape(shape)}
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────
+   Subtle Grid Mesh Overlay
+   ──────────────────────────────────────────── */
+function GridMesh() {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    let w, h;
+
+    const resize = () => {
+      w = window.innerWidth;
+      h = document.documentElement.scrollHeight;
+      canvas.width = w;
+      canvas.height = h;
+      drawGrid();
+    };
+
+    const drawGrid = () => {
+      ctx.clearRect(0, 0, w, h);
+      const CELL = 80;
+
+      // Draw vertical lines
+      for (let x = 0; x <= w; x += CELL) {
+        // Fade lines near edges for a vignette effect
+        const edgeFade = Math.min(x / (w * 0.15), (w - x) / (w * 0.15), 1);
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.strokeStyle = `rgba(139, 92, 246, ${0.025 * edgeFade})`;
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      }
+
+      // Draw horizontal lines
+      for (let y = 0; y <= h; y += CELL) {
+        const edgeFade = Math.min(y / (h * 0.1), (h - y) / (h * 0.1), 1);
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.strokeStyle = `rgba(61, 220, 255, ${0.02 * edgeFade})`;
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      }
+
+      // Draw small dots at intersections
+      for (let x = 0; x <= w; x += CELL) {
+        for (let y = 0; y <= h; y += CELL) {
+          const edgeFadeX = Math.min(x / (w * 0.2), (w - x) / (w * 0.2), 1);
+          const edgeFadeY = Math.min(y / (h * 0.1), (h - y) / (h * 0.1), 1);
+          const dot = edgeFadeX * edgeFadeY;
+          if (dot > 0.1) {
+            ctx.beginPath();
+            ctx.arc(x, y, 1.2, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(139, 92, 246, ${0.08 * dot})`;
+            ctx.fill();
+          }
+        }
+      }
+    };
+
+    resize();
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
+
+  return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-[0]" />;
+}
+
+/* ────────────────────────────────────────────
+   Large Gradient Orbs (ambient background)
+   ──────────────────────────────────────────── */
+function GradientOrbs() {
+  return (
+    <div className="fixed inset-0 pointer-events-none z-[0] overflow-hidden">
+      {/* Top-right teal orb */}
+      <motion.div
+        animate={{ 
+          x: [0, 50, -30, 0], 
+          y: [0, -40, 20, 0],
+          scale: [1, 1.1, 0.95, 1],
+        }}
+        transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
+        className="absolute -top-[200px] -right-[200px] w-[600px] h-[600px] rounded-full opacity-30"
+        style={{ background: "radial-gradient(circle, rgba(61,220,255,0.15) 0%, rgba(61,220,255,0.05) 40%, transparent 70%)" }}
+      />
+      {/* Center violet orb */}
+      <motion.div
+        animate={{ 
+          x: [-20, 30, -10, -20], 
+          y: [0, 30, -20, 0],
+          scale: [1, 0.9, 1.05, 1],
+        }}
+        transition={{ duration: 25, repeat: Infinity, ease: "easeInOut", delay: 3 }}
+        className="absolute top-[30%] left-[30%] w-[500px] h-[500px] rounded-full opacity-20"
+        style={{ background: "radial-gradient(circle, rgba(139,92,246,0.18) 0%, rgba(139,92,246,0.05) 40%, transparent 70%)" }}
+      />
+      {/* Bottom-left lavender orb */}
+      <motion.div
+        animate={{ 
+          x: [0, -40, 20, 0], 
+          y: [0, 30, -30, 0],
+          scale: [1, 1.08, 0.92, 1],
+        }}
+        transition={{ duration: 22, repeat: Infinity, ease: "easeInOut", delay: 7 }}
+        className="absolute -bottom-[100px] -left-[150px] w-[500px] h-[500px] rounded-full opacity-25"
+        style={{ background: "radial-gradient(circle, rgba(196,181,253,0.15) 0%, rgba(139,92,246,0.05) 40%, transparent 70%)" }}
+      />
+      {/* Mid-right accent orb */}
+      <motion.div
+        animate={{ 
+          x: [10, -20, 30, 10], 
+          y: [-15, 25, -10, -15],
+          scale: [0.95, 1.05, 1, 0.95],
+        }}
+        transition={{ duration: 18, repeat: Infinity, ease: "easeInOut", delay: 5 }}
+        className="absolute top-[60%] right-[5%] w-[400px] h-[400px] rounded-full opacity-15"
+        style={{ background: "radial-gradient(circle, rgba(61,220,255,0.12) 0%, rgba(139,92,246,0.06) 40%, transparent 70%)" }}
+      />
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────
+   Constellation Divider (decorative section separator)
+   ──────────────────────────────────────────── */
+function ConstellationDivider({ flip = false }) {
+  const dots = Array.from({ length: 12 }, (_, i) => ({
+    x: 5 + (i * 90 / 11),
+    size: Math.random() > 0.7 ? 3 : 1.5,
+    isBright: Math.random() > 0.6,
+  }));
+
+  return (
+    <div className={`w-full max-w-4xl mx-auto py-8 relative z-20 ${flip ? "rotate-180" : ""}`}>
+      <svg width="100%" height="40" viewBox="0 0 100 40" preserveAspectRatio="none" className="overflow-visible">
+        {/* Main gradient line */}
+        <line x1="5" y1="20" x2="95" y2="20" stroke="url(#divGrad)" strokeWidth="0.3" opacity="0.4" />
+        {/* Constellation dots along the line */}
+        {dots.map((d, i) => (
+          <g key={i}>
+            <circle cx={d.x} cy={20} r={d.size * 0.4} fill={d.isBright ? "#3DDCFF" : "#8B5CF6"} opacity={d.isBright ? 0.6 : 0.3}>
+              <animate attributeName="opacity" values={d.isBright ? "0.3;0.8;0.3" : "0.2;0.4;0.2"} dur={`${3 + i * 0.5}s`} repeatCount="indefinite" />
+            </circle>
+            {d.isBright && (
+              <circle cx={d.x} cy={20} r={d.size * 1.5} fill={d.isBright ? "#3DDCFF" : "#8B5CF6"} opacity="0.08">
+                <animate attributeName="r" values={`${d.size};${d.size * 2.5};${d.size}`} dur={`${4 + i * 0.3}s`} repeatCount="indefinite" />
+                <animate attributeName="opacity" values="0.08;0.2;0.08" dur={`${4 + i * 0.3}s`} repeatCount="indefinite" />
+              </circle>
+            )}
+            {/* Connection lines between some dots */}
+            {i < dots.length - 1 && Math.random() > 0.3 && (
+              <line 
+                x1={d.x} y1={20} 
+                x2={dots[i + 1].x} y2={20} 
+                stroke={i % 2 === 0 ? "#8B5CF6" : "#3DDCFF"} 
+                strokeWidth="0.2" 
+                opacity="0.15" 
+              />
+            )}
+          </g>
+        ))}
+        <defs>
+          <linearGradient id="divGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="transparent" />
+            <stop offset="30%" stopColor="#8B5CF6" />
+            <stop offset="50%" stopColor="#3DDCFF" />
+            <stop offset="70%" stopColor="#8B5CF6" />
+            <stop offset="100%" stopColor="transparent" />
+          </linearGradient>
+        </defs>
+      </svg>
+    </div>
+  );
 }
 
 function SignalRings() {
@@ -568,21 +1143,32 @@ export default function App() {
        {/* Global Light Layer Elements */}
        <div className="noise-overlay" />
        
+       {/* Layer -1: Animated particle background (deepest) */}
+       <ParticleBackground />
+       
+       {/* Layer 0: Grid mesh */}
+       <GridMesh />
+       
+       {/* Layer 0: Ambient gradient orbs */}
+       <GradientOrbs />
+       
        {/* Global High Effort Mouse Bloom */}
        <MouseFollower />
        
-       {/* Global Particles providing vertical rhythm and connections */}
-       <InteractiveParticles />
+       {/* Layer 1: Plexus Constellation Network */}
+       <PlexusNetwork />
+       
+       {/* Layer 2: Floating geometric shapes */}
+       <FloatingGeometrics />
        
        <Navbar />
        <main className="relative z-10 flex flex-col items-center">
          <Hero />
-         <div className="w-full max-w-4xl mx-auto h-[1px] bg-gradient-to-r from-transparent via-energy-teal/20 to-transparent my-6" />
+         <ConstellationDivider />
          <ProblemSection />
          <ActivationLayer />
          <FeatureFlow />
-
-         <div className="w-full max-w-3xl mx-auto h-[1px] bg-gradient-to-r from-transparent via-energy-violet/10 to-transparent my-6" />
+         <ConstellationDivider flip />
          <DownloadPanel />
        </main>
        <Footer />

@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { startRecognition, stopRecognition } from "./voice/speechRecognition";
+import { initWakeWordListener, startWakeWordListener, stopWakeWordListener } from "./voice/wakeWordListener";
+import { speakText } from "./voice/voiceUtils";
+import { playWakeChime } from "./voice/audioEffects";
 import { detectIntentWithGemini } from "./ai/aiParser";
+import { detectContinue } from "./ai/aiContinue";
 import { executeWorkflow } from "./workflows/workflowExecutor";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import "./App.css";
@@ -9,50 +13,92 @@ function App() {
   const [text, setText] = useState("");
   const [status, setStatus] = useState("idle"); // idle | listening | processing | executed
   const executionLocked = useRef(false);
+  const [mode, setMode] = useState("workflow"); // workflow | dictation
+  const modeRef = useRef("workflow");
+  const textRef = useRef("");
+  const statusRef = useRef("idle");
 
   useEffect(() => {
-    // When the Tauri Global Shortcut triggers this window natively via shortcut...
-    // Boot up the Mic completely automatically. Ensure we only start if genuinely idle.
-    const startSequence = () => {
-      if (!executionLocked.current) {
-        startListeningAuto();
-      }
-    };
+    statusRef.current = status;
+  }, [status]);
 
-    const timer = setTimeout(startSequence, 100);
+  useEffect(() => {
+    // Listen for custom trigger event from Rust
+    let unlistenShortcut = null;
+    getCurrentWindow().listen("trigger-assistant", (event) => {
+      const newMode = event.payload || "workflow";
+      setMode(newMode);
+      modeRef.current = newMode;
+      
+      // startListeningAuto will handle initial setup
+      startListeningAuto(newMode === "dictation");
+    }).then(u => { unlistenShortcut = u; });
+
+    // Initialize Wake Word Listener
+    initWakeWordListener((detectedMode = "workflow") => {
+      // On wake word heard
+      if (statusRef.current === "idle") {
+         playWakeChime(); // Play the premium ping sound
+         
+         setMode(detectedMode);
+         modeRef.current = detectedMode;
+         
+         const isDictation = detectedMode === "dictation";
+         startListeningAuto(isDictation);
+         
+         // Response varies by mode for a premium feel
+         if (isDictation) {
+           speakText("Ready to type.");
+         } else {
+           speakText("I'm here.");
+         }
+         
+         getCurrentWindow().show().catch(() => {});
+         getCurrentWindow().setFocus().catch(() => {});
+      }
+    });
+    startWakeWordListener();
 
     const handleKeyDown = async (e) => {
-      // Emergency escape route matches Siri/Spotlight behavior if user changes mind
       if (e.key === "Escape") {
         await escapeOverlay();
+      } else if (e.key === "Enter" && modeRef.current === "dictation") {
+        if (textRef.current) {
+          handleResult(textRef.current, true);
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
 
-    // If the window is explicitly shown by the Rust layer subsequently
-    let unlisten = null;
-    getCurrentWindow().listen("tauri://focus", () => {
-      // Delay slightly so the browser finishes cleaning up the previous
-      // recognition session before we call start() again.
-      setTimeout(() => startSequence(), 400);
-    }).then(u => { unlisten = u; });
+    // Warm up the speech engine
+    if (window.speechSynthesis) {
+      const warmup = new SpeechSynthesisUtterance("");
+      window.speechSynthesis.speak(warmup);
+    }
 
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
-      clearTimeout(timer);
-      if (unlisten) unlisten();
+      stopWakeWordListener();
+      if (unlistenShortcut) unlistenShortcut();
     };
   }, []);
 
-  const startListeningAuto = () => {
+  const startListeningAuto = (isDictation = false) => {
+    // Pause wake word listener while the assistant is active to avoid resource conflicts
+    stopWakeWordListener();
+    
     setText("");
     setStatus("listening");
     executionLocked.current = false;
-    startRecognition(handleResult, handleError);
+    
+    startRecognition(handleResult, handleError, isDictation);
   };
 
   const handleResult = async (transcript, isFinal, isSilentEnd = false) => {
-    if (transcript) setText(transcript);
+    if (transcript) {
+      setText(transcript);
+      textRef.current = transcript;
+    }
 
     if (isFinal && !isSilentEnd && !executionLocked.current) {
       if (!transcript.trim()) return;
@@ -61,29 +107,53 @@ function App() {
       setStatus("processing");
 
       try {
-        const intent = await detectIntentWithGemini(transcript);
+        if (modeRef.current === "dictation") {
+          console.log("Dictation mode: Typing transcript directly...");
+          await executeWorkflow({ action: "type_text", data: { text: transcript, app: "" } });
+        } else {
+          const intent = await detectIntentWithGemini(transcript);
+          const hasAction = (intent?.action && intent.action !== "unknown") || intent?.reply;
 
-        if (!intent || !intent.action) {
-          console.warn("No intent detected.");
-          escapeOverlay();
-          return;
+          if (!hasAction) {
+            console.warn("No intent detected or unknown action.");
+            escapeOverlay();
+            return;
+          }
+
+          console.log("Intent:", intent);
+
+          let shouldContinue = false;
+          if (intent.continue === true) {
+            shouldContinue = true;
+          } else if (intent.continue === false) {
+            shouldContinue = false;
+          } else {
+            const c = await detectContinue(transcript);
+            shouldContinue = c.continue !== false;
+          }
+
+          await executeWorkflow(intent);
+
+          // Respect continuous mode from AI + aiContinue fallback (Conversation Mode)
+          if (shouldContinue) {
+            setStatus("listening");
+            setTimeout(() => {
+              executionLocked.current = false;
+              startListeningAuto(false);
+            }, 1500); 
+            return;
+          }
+
+          setStatus("executed");
+          setTimeout(() => {
+            escapeOverlay();
+          }, 3000); 
         }
-
-        console.log("Intent:", intent);
-        await executeWorkflow(intent);
-
-        setStatus("executed");
-
-        setTimeout(() => {
-          escapeOverlay();
-        }, 2000); // 2 second visible then close
-
       } catch (error) {
-        console.error("Gemini API request failed completely:", error);
+        console.error("Workflow execution failed:", error);
         escapeOverlay();
       }
     } else if (isFinal && isSilentEnd && !executionLocked.current) {
-      // Organic silent timeout or system cancel
       escapeOverlay();
     }
   };
@@ -102,6 +172,10 @@ function App() {
     setStatus("idle");
     setText("");
     executionLocked.current = false;
+    
+    // Resume listening for the wake word
+    startWakeWordListener();
+    
     try {
       await getCurrentWindow().hide();
     } catch (e) { }
@@ -117,7 +191,8 @@ function App() {
       </div>
       <div className="radial-blur"></div>
 
-      <div className="interaction-zone">
+      <div className={`interaction-zone ${mode}`}>
+        <div className="mode-label">{mode.toUpperCase()} MODE</div>
         <div className="live-transcript">
           {text}
         </div>

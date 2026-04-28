@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Nova",
+  "productName": "Sonix",
   "version": "0.1.0",
-  "identifier": "com.voice.nova",
+  "identifier": "com.voice.sonix",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",

@@ -255,6 +255,14 @@ html {
   transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.interaction-zone.dictation .orb-core {
+  background: linear-gradient(135deg, #F6AD55, #ED8936, #ECC94B); /* Warm/Orange for Dictation */
+}
+
+.interaction-zone.dictation .live-transcript {
+  text-shadow: 0 4px 24px rgba(251, 191, 36, 0.6), 0 0 14px rgba(251, 146, 60, 0.4);
+}
+
 .mic-icon {
   color: rgba(255, 255, 255, 0.9);
   z-index: 20;
